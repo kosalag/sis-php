@@ -7,6 +7,17 @@ RUN apt-get install -y \
     libxml2-dev \
     libmcrypt-dev \
     libldap2-dev 
+
+# Install composer
+RUN curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer
+
+# Add apache config to enable .htaccess and do some stuff you want
+COPY apache_default /etc/apache2/sites-available/000-default.conf
+
+# Enable mod rewrite and listen to localhost
+RUN a2enmod rewrite && \
+	echo "ServerName localhost" >> /etc/apache2/apache2.conf
+
 RUN docker-php-ext-configure gd --with-freetype-dir=/usr/include/ --with-jpeg-dir=/usr/include/
 RUN docker-php-ext-install -j$(nproc) gd
      
@@ -50,5 +61,12 @@ RUN docker-php-ext-enable redis
 RUN mv "$PHP_INI_DIR/php.ini-production" "$PHP_INI_DIR/php.ini"
 
 ADD ./ /var/www/html
+
+RUN	sed -i -e "s/__SALT__/somerandomsalt/" config/app.php && \
+	# Make sessionhandler configurable via environment
+	sed -i -e "s/'php',/env('SESSION_DEFAULTS', 'php'),/" config/app.php  && \
+	# Set write permissions for webserver
+	chgrp -R www-data logs tmp && \
+	chmod -R g+rw logs tmp
 
 EXPOSE 9000
